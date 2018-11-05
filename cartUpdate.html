@@ -1,0 +1,108 @@
+<script>
+//follow the Google products obj convention: 
+//https://developers.google.com/analytics/devguides/collection/analyticsjs/enhanced-ecommerce#product-data
+
+//Create a Custom HTML tag in GTM, create a trigger whenever the cart updates
+
+//create two product vars to compare any cart updates, first time result_2 will be empty array
+//cart_products can either be a global JS varoable in GTM or simply the window.products JS var
+  
+var result_1 = {{cart_products}};
+var result_2 = JSON.parse(sessionStorage.getItem('session_products'))||[];
+
+//store products in session storage
+if (!sessionStorage.getItem('session_products')){
+  sessionStorage.setItem('session_products', JSON.stringify(cart_products));
+}
+  
+//use your favs obj comparison function:
+//https://stackoverflow.com/questions/21987909/how-to-get-the-difference-between-two-arrays-of-objects-in-javascript
+
+//Find values that are in result1 but not in result2
+var uniqueResultOne = result_1.filter(function(obj) {
+    return !result_2.some(function(obj2) {
+        return obj.id == obj2.id && obj.quantity == obj2.quantity;
+    });
+});
+
+//Find values that are in result2 but not in result1
+var uniqueResultTwo = result_2.filter(function(obj) {
+    return !result_1.some(function(obj2) {
+        return obj.id == obj2.id && obj.quantity == obj2.quantity;
+    });
+});
+
+//Combine the two arrays of unique entries
+var result_0 = uniqueResultOne.concat(uniqueResultTwo);
+
+var diff = result_0.reduce(function (accumulator, currentValue) {
+    return accumulator != 0? accumulator - currentValue.quantity:currentValue.quantity;
+},0);
+
+//Add logic - positve diff var or greater than result_1 array
+//Remove logic - negative diff var less than result_1 array
+
+//create new_prod_obj instance to not write over the result var obj - global objs via by reference
+//follow Google guide to config GTM for Add and Remove GA events
+//https://developers.google.com/tag-manager/enhanced-ecommerce#cart
+
+  if (diff >= 1 && result_0.length == 2){
+    var prod_obj = result_0[0];
+    var new_prod_obj = JSON.parse(JSON.stringify(prod_obj));
+    new_prod_obj.quantity=diff;
+
+    dataLayer.push({
+  'event': 'addToCart',
+  'ecommerce': {
+    'currencyCode': {{currencyCode}}, // optinal field
+    'add': {                                
+      'products': [new_prod_obj]
+    }
+  }
+});
+  }
+    
+      if (diff < 0 && result_0.length == 2){
+    var prod_obj = result_0[0];
+    var new_prod_obj = JSON.parse(JSON.stringify(prod_obj));
+    new_prod_obj.quantity=Math.abs(diff);
+
+    dataLayer.push({
+  'event': 'removeFromCart',
+  'ecommerce': {
+    'remove': {                                
+      'products': [new_prod_obj]
+    }
+  }
+});
+      }
+  
+        if (result_1.length > result_2.length){
+    var new_prod_obj = result_0;
+          
+    dataLayer.push({
+  'event': 'addToCart',
+  'currencyCode': {{currencyCode}},
+  'ecommerce': {
+    'add': {                                
+      'products': new_prod_obj
+    }
+  }
+});
+      }
+          if (result_1.length < result_2.length){
+    var new_prod_obj = result_0;
+          
+    dataLayer.push({
+  'event': 'removeFromCart',
+  'ecommerce': {
+    'remove': {                                
+      'products': new_prod_obj
+    }
+  }
+});
+      }
+  //always write the current cart products to session storage
+  sessionStorage.setItem('session_products', JSON.stringify(cart_products))
+
+</script>
